@@ -101,6 +101,24 @@
     cursor: pointer;
 }
 
+.filter-active {
+    background: #d9f2e3;
+    border-color: #1fa855;
+    color: #1fa855;
+}
+
+.filter-inactive {
+    background: #fbdada;
+    border-color: #e0342b;
+    color: #e0342b;
+}
+
+.filter-suspended {
+    background: #fff3b8;
+    border-color: #d8a900;
+    color: #8a6800;
+}
+
 /* Table */
 .staff-table {
     width: 100%;

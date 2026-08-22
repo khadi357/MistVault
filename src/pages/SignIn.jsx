@@ -4,8 +4,6 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import logo from "../assets/mist-icon.png";
 import "../styles/SignIn.css";
 import { toast } from "react-hot-toast";
-import "react-toastify/dist/ReactToastify.css";
-import { ToastContainer } from "react-toastify";
 
 function App() {
   return (
@@ -43,7 +41,6 @@ function SignIn() {
     setLoading(true); // Trigger loading animation immediately
 
     try {
-      //const BaseApi = "http://127.0.0.1:4444/api";
       const BaseApi = "https://medsec.onrender.com/api";
       const response = await fetch(`${BaseApi}/login-manager`, {
         method: "POST",
@@ -81,9 +78,20 @@ function SignIn() {
     <div className="signin-container">
       <div className="signin-card">
         <form onSubmit={handleSubmit}>
-          {/* LOGO */}
           <div className="logo-wrapper">
-            <img src={logo} alt="MIST logo" className="logo-img" />
+            <div className="logo-top">
+              <img src={logo} alt="MIST logo" className="logo-img" />
+
+              <span className="logo-text">
+                MIST
+              </span>
+            </div>
+
+            <span className="logo-texts">
+              MEDICAL INFORMATION STORAGE
+              <br />
+              TECHNOLOGY
+            </span>
           </div>
 
           <div className="form-group">

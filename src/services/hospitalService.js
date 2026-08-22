@@ -1,5 +1,4 @@
 const BASE_URL = "https://medsec.onrender.com/api";
-//const BASE_URL = "http://127.0.0.1:4444/api"
 
 const token = localStorage.getItem("authToken");
 
