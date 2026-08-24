@@ -84,6 +84,11 @@ export default function ItSidebar({
           {!isCollapsed && <span>Control</span>}
         </NavLink>
 
+        {/* <NavLink to="/settings" className="nav-item">
+          <FiSettings />
+          {!isCollapsed && <span>Settings</span>}
+        </NavLink> */}
+
         {/* LOGOUT */}
         <button onClick={handleLogout} className="nav-item logout">
           <FiLogOut />

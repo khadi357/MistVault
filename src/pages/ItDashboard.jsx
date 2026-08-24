@@ -115,7 +115,7 @@ export default function ITDashboard() {
         </div>
 
         {/* BUTTON */}
-        <button className="add-staff-btn" onClick={() => setShowStaff(true)}>
+        <button className="it-add-btn" onClick={() => setShowStaff(true)}>
           + Add New Staff
         </button>
 

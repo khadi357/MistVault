@@ -123,9 +123,20 @@ function SignIn2() {
     <div className="signin-container">
       <div className="signin-card">
         <form onSubmit={handleSubmit}>
-          {/* LOGO */}
           <div className="logo-wrapper">
-            <img src={logo} alt="MIST logo" className="logo-img" />
+            <div className="logo-top">
+                <img src={logo} alt="MIST logo" className="logo-img" />
+          
+                  <span className="logo-text">
+                    MIST
+                  </span>
+            </div>
+          
+                  <span className="logo-texts">
+                    MEDICAL INFORMATION STORAGE
+                    <br />
+                    TECHNOLOGY
+                  </span>
           </div>
 
           {/* EMAIL INPUT */}

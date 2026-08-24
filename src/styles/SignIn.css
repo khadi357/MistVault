@@ -60,7 +60,7 @@
 }
 
 .logo-img {
-  width: 300px;
+  width: 60px;
   height: auto;
   object-fit: contain;
 
@@ -266,4 +266,32 @@
     border-radius: 18px;
     font-weight: 500;
   }
+}
+
+/* Container rules inside the button to align icon and text nicely */
+.btn-loader-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Keyframes animation rule to make the lucide loader spin */
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Button style adjustments while processing request */
+.signin-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
 }

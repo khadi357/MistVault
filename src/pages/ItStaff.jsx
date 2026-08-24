@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Dashboardicon from "../assets/employee.png";
-import Sidebar from "../components/Sidebar.jsx";
 import "./ItStaff.css";
 import AddStaff from "./AddStaff.jsx";
 import { BaseApi } from "../components/apiEndpoint.jsx";
@@ -133,7 +132,11 @@ export default function Staff() {
                 <option value="Suspended">Suspended</option>
               </select>
 
-              <button className="filter-btn">Filter ☰</button>
+              <button
+                className={`filter-btn filter-${statusFilter.toLowerCase()}`}
+              >
+                {statusFilter === "All" ? "Filter ☰" : statusFilter}
+              </button>
             </div>
           </div>
 
