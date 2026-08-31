@@ -94,6 +94,7 @@ export default function StaffDetails() {
     accessLevel: "",
   });
 
+  // Fetch initial staff data on load from backend
   useEffect(() => {
     const fetchStaffDetails = async () => {
       try {
@@ -131,15 +132,25 @@ export default function StaffDetails() {
     }
   }, [id]);
 
-  // Derived state to check if account is currently blocked/suspended
+  // Derived status booleans from backend data
   const isBlocked = Boolean(
+    staff?.blocked ||
+    staff?.isBlocked ||
     staff?.staffAccounts?.blocked ||
+    staff?.staffAccounts?.isAdminDisabled ||
     staff?.status === "Blocked" ||
     staff?.status === "Suspended",
   );
 
+  const isLocked = Boolean(
+    staff?.locked ||
+    staff?.isLocked ||
+    staff?.staffAccounts?.locked ||
+    staff?.status === "Locked",
+  );
+
   /**
-   * Toggle account Block/Unblock status via single API call
+   * Toggle account Block/Unblock status dynamically
    */
   const handleToggleBlockAccount = async () => {
     const actionLabel = isBlocked ? "Unblock Account" : "Block Account";
@@ -175,19 +186,23 @@ export default function StaffDetails() {
 
       alert(data.message || `${actionLabel} successful!`);
 
-      // Sync updated state locally
-      if (data.staff) {
-        setStaff(data.staff);
-      } else {
-        setStaff((prev) => ({
-          ...prev,
-          status: data.blocked ? "Blocked" : "Active",
-          staffAccounts: {
-            ...prev?.staffAccounts,
-            blocked: data.blocked ?? !isBlocked,
-          },
-        }));
-      }
+      // Immediately flip all block flags on success so UI updates on the spot
+      const nextBlockedState = !isBlocked;
+
+      setStaff((prev) => ({
+        ...prev,
+        ...(data.staff || {}),
+        blocked: nextBlockedState,
+        isBlocked: nextBlockedState,
+        status: nextBlockedState ? "Blocked" : "Active",
+        staffAccounts: {
+          ...prev?.staffAccounts,
+          ...(data.staff?.staffAccounts || {}),
+          blocked: nextBlockedState,
+          isAdminDisabled: nextBlockedState,
+          isActive: !nextBlockedState,
+        },
+      }));
     } catch (err) {
       console.error(`Error toggling block state:`, err);
       alert(`Action Failed: ${err.message}`);
@@ -197,17 +212,12 @@ export default function StaffDetails() {
   };
 
   /**
-   * Universal helper function for generic button actions (e.g. Request Email, Lock)
+   * Toggle account Lock/Unlock status dynamically
    */
-  const executeStaffAction = async (
-    endpointSuffix,
-    actionLabel,
-    newStatus = null,
-  ) => {
-    if (actionLoading) return;
-
+  const handleToggleLockAccount = async () => {
+    const actionLabel = isLocked ? "Unlock Account" : "Lock Account";
     const isConfirmed = window.confirm(
-      `Are you sure you want to perform: ${actionLabel}?`,
+      `Are you sure you want to ${actionLabel.toLowerCase()}?`,
     );
     if (!isConfirmed) return;
 
@@ -216,7 +226,7 @@ export default function StaffDetails() {
       const token = localStorage.getItem("authToken");
 
       const response = await fetch(
-        `${BaseApi}/accountStaff/staff/${id}/${endpointSuffix}`,
+        `${BaseApi}/accountStaff/staff/${id}/toggle-lock`,
         {
           method: "PATCH",
           headers: {
@@ -236,29 +246,78 @@ export default function StaffDetails() {
         );
       }
 
-      alert(`${actionLabel} successfully executed!`);
+      alert(data.message || `${actionLabel} successful!`);
 
-      if (data.staff) {
-        setStaff(data.staff);
-      } else if (newStatus) {
-        setStaff((prevStaff) => ({
-          ...prevStaff,
-          status: newStatus,
-        }));
-      }
+      // Immediately flip all lock flags on success so UI updates on the spot
+      const nextLockedState = !isLocked;
+
+      setStaff((prev) => ({
+        ...prev,
+        ...(data.staff || {}),
+        locked: nextLockedState,
+        isLocked: nextLockedState,
+        status: nextLockedState ? "Locked" : "Active",
+        staffAccounts: {
+          ...prev?.staffAccounts,
+          ...(data.staff?.staffAccounts || {}),
+          locked: nextLockedState,
+          blocked: nextLockedState,
+        },
+      }));
     } catch (err) {
-      console.error(`Error executing ${actionLabel}:`, err);
+      console.error(`Error toggling lock state:`, err);
       alert(`Action Failed: ${err.message}`);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Dedicated button click handlers
-  const handleRequestEmail = () =>
-    executeStaffAction("request-email", "Request Email Sending");
-  const handleLockAccount = () =>
-    executeStaffAction("lock", "Lock Account", "Locked");
+  /**
+   * Send Email Request Action
+   */
+  const handleRequestEmail = async () => {
+    if (actionLoading) return;
+
+    const isConfirmed = window.confirm(
+      "Are you sure you want to send an email request to this staff member?",
+    );
+    if (!isConfirmed) return;
+
+    try {
+      setActionLoading(true);
+      const token = localStorage.getItem("authToken");
+
+      const response = await fetch(
+        `${BaseApi}/accountStaff/staff/${id}/request-email`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || data.message || "Failed to send email request.",
+        );
+      }
+
+      alert(data.message || "Email request sent successfully!");
+
+      if (data.staff) {
+        setStaff(data.staff);
+      }
+    } catch (err) {
+      console.error("Error requesting email:", err);
+      alert(`Action Failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // --- Password Modal Handlers ---
   const handleOpenPasswordModal = () => {
@@ -314,7 +373,6 @@ export default function StaffDetails() {
 
   // --- Edit Details Modal Handlers ---
   const handleOpenEditModal = () => {
-    // Pre-fill modal inputs with existing staff data
     setEditForm({
       firstName: staff?.firstName || staff?.name?.split(" ")[0] || "",
       lastName:
@@ -361,7 +419,6 @@ export default function StaffDetails() {
 
       alert("Staff details updated successfully!");
 
-      // Update state with newly returned staff or form data fallback
       const updatedStaff = data.staff || {
         ...staff,
         ...editForm,
@@ -414,15 +471,20 @@ export default function StaffDetails() {
     );
   }
 
-  // Extract variables with safe fallbacks
+  // Extract display values
   const rawName =
     staff.name || `${staff.firstName || ""} ${staff.lastName || ""}`.trim();
   const name = getDisplayString(rawName, "Unknown Staff");
   const staffID = getDisplayString(staff.id || staff.staffID || staff._id);
   const contact = getDisplayString(staff.contact || staff.phone);
-  const status = isBlocked
+
+  // Dynamic status display priority
+  const displayStatus = isBlocked
     ? "Blocked"
-    : staff.status || (staff.isActive ? "Active" : "Inactive");
+    : isLocked
+      ? "Locked"
+      : staff.status || (staff.isActive ? "Active" : "Inactive");
+
   const recentActivity = Array.isArray(staff.recentActivity)
     ? staff.recentActivity
     : [];
@@ -445,11 +507,19 @@ export default function StaffDetails() {
           <div className="profile-info">
             <h3 className="profile-name">
               {name}
-              {status === "Active" && <span className="status-dot" />}
+              {displayStatus === "Active" && <span className="status-dot" />}
             </h3>
 
             <p className="profile-line">
               <strong>Staff ID:</strong> {staffID}
+            </p>
+            <p className="profile-line">
+              <strong>Status:</strong>{" "}
+              <span
+                className={`status-badge status-${displayStatus.toLowerCase()}`}
+              >
+                {displayStatus}
+              </span>
             </p>
             <p className="profile-line">
               <strong>Role:</strong> {getDisplayString(staff.role)}
@@ -463,6 +533,7 @@ export default function StaffDetails() {
             </p>
 
             <div className="profile-actions">
+              {/* Request Email Button */}
               <button
                 className="action-btn action-green"
                 onClick={handleRequestEmail}
@@ -471,7 +542,7 @@ export default function StaffDetails() {
                 Request Email
               </button>
 
-              {/* Dynamic Toggle Block/Unblock Button */}
+              {/* Dynamic Block / Unblock Button */}
               <button
                 className={`action-btn ${isBlocked ? "action-green" : "action-red"}`}
                 onClick={handleToggleBlockAccount}
@@ -480,6 +551,7 @@ export default function StaffDetails() {
                 {isBlocked ? "Unblock Account" : "Block Account"}
               </button>
 
+              {/* Reset Password Button */}
               <button
                 className="action-btn action-orange"
                 onClick={handleOpenPasswordModal}
@@ -487,12 +559,14 @@ export default function StaffDetails() {
               >
                 Reset Password
               </button>
+
+              {/* Dynamic Lock / Unlock Button */}
               <button
-                className="action-btn action-purple"
-                onClick={handleLockAccount}
+                className={`action-btn ${isLocked ? "action-green" : "action-purple"}`}
+                onClick={handleToggleLockAccount}
                 disabled={actionLoading}
               >
-                {status === "Locked" ? "Account Locked" : "Lock Account"}
+                {isLocked ? "Unlock Account" : "Lock Account"}
               </button>
             </div>
           </div>
@@ -555,7 +629,7 @@ export default function StaffDetails() {
         </div>
       </main>
 
-      {/* --- RESET PASSWORD MODAL --- */}
+      {/* RESET PASSWORD MODAL */}
       {showPasswordModal && (
         <div className="modal-overlay">
           <div className="modal-container">
@@ -610,7 +684,7 @@ export default function StaffDetails() {
         </div>
       )}
 
-      {/* --- EDIT DETAILS MODAL --- */}
+      {/* EDIT DETAILS MODAL */}
       {showEditModal && (
         <div className="modal-overlay">
           <div className="modal-container modal-large">

@@ -18,7 +18,7 @@ export default function Activity() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
 
-  // Fetch Activity Logs from Backend
+  // Fetch Activity Logs
   const fetchLogs = useCallback(async () => {
     try {
       setLoading(true);
@@ -63,7 +63,7 @@ export default function Activity() {
     return () => clearTimeout(debounceTimer);
   }, [fetchLogs]);
 
-  // Format Date-Time
+  // Date Formatting Helper
   const formatDateTime = (dateString) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
@@ -78,17 +78,77 @@ export default function Activity() {
     });
   };
 
-  // Generate and Download Readable CSV / Text Document
+  // Helper: Extract Performer (Actor) Information
+  const getActorInfo = (log) => {
+    if (!log?.userId)
+      return { name: "System / Unknown", email: "N/A", role: "N/A", id: "N/A" };
+    if (typeof log.userId === "object") {
+      const accounts = log.userId.staffAccounts || {};
+      return {
+        name: accounts.name || "Unknown Staff",
+        email: accounts.email || "N/A",
+        role: accounts.role || "IT Staff",
+        staffID: accounts.staffID || "N/A",
+        id: log.userId._id || "N/A",
+      };
+    }
+    return { name: "Staff Member", email: "N/A", role: "N/A", id: log.userId };
+  };
+
+  // Helper: Extract Receiver (Target) Information
+  const getTargetInfo = (log) => {
+    if (!log?.entityId)
+      return {
+        name: "None / N/A",
+        type: log?.entityType || "N/A",
+        details: "N/A",
+      };
+
+    const type = log.entityType || "Unknown";
+
+    if (typeof log.entityId === "object") {
+      if (type === "Patient") {
+        return {
+          name: log.entityId.name || "Unknown Patient",
+          type: "Patient",
+          gender: log.entityId.gender || "N/A",
+          phone: log.entityId.phone || "N/A",
+          ward: log.entityId.wardAssignment || "N/A",
+          id: log.entityId._id,
+        };
+      } else {
+        const staff = log.entityId.staffAccounts || {};
+        console.log();
+        return {
+          name: staff.name || "Unknown Staff Target",
+          type: "Hospital IT Staff",
+          email: staff.email || "N/A",
+          department: staff.department || "N/A",
+          role: staff.role || "N/A",
+          id: log.entityId._id,
+          staffID: staff.staffID,
+        };
+      }
+    }
+
+    return { name: "Target Entity", type, id: log.entityId };
+  };
+
+  // CSV Report Generator
   const handleDownloadReport = () => {
     if (logs.length === 0) {
       alert("No logs available to export.");
       return;
     }
 
-    const headers = ["ID,Date & Time,Status,Action Type,Audit Message\n"];
+    const headers = [
+      "ID,Date & Time,Status,Action,Performer,Target Type,Target Name,Audit Message\n",
+    ];
     const rows = logs.map((log, index) => {
+      const actor = getActorInfo(log);
+      const target = getTargetInfo(log);
       const cleanMessage = `"${(log.message || "").replace(/"/g, '""')}"`;
-      return `${index + 1},"${formatDateTime(log.createdAt)}",${log.status || "Successful"},${log.action || "N/A"},${cleanMessage}`;
+      return `${index + 1},"${formatDateTime(log.createdAt)}",${log.status || "Successful"},${log.action || "N/A"},"${actor.name}",${target.type},"${target.name}",${cleanMessage}`;
     });
 
     const csvContent =
@@ -149,7 +209,7 @@ export default function Activity() {
               )}
             </div>
 
-            {/* Export Modal Trigger */}
+            {/* Export Trigger */}
             <button
               className="export-btn"
               onClick={() => setExportModalOpen(true)}
@@ -159,34 +219,42 @@ export default function Activity() {
           </div>
         </div>
 
-        {/* Logs Feed */}
+        {/* Activity Feed */}
         <div className="activity-list">
           {loading ? (
             <p className="activity-loading">Loading activity records...</p>
           ) : error ? (
             <p className="activity-error">{error}</p>
           ) : logs.length > 0 ? (
-            logs.map((log) => (
-              <div
-                className="activity-log-item"
-                key={log._id}
-                onClick={() => setSelectedLog(log)}
-              >
-                <div>
-                  <p
-                    className={`log-status ${
-                      log.status === "Error" ? "log-error" : "log-success"
-                    }`}
-                  >
-                    {log.status || "Successful"}
-                  </p>
-                  <p className="log-text">{log.message}</p>
+            logs.map((log) => {
+              const actor = getActorInfo(log);
+              return (
+                <div
+                  className="activity-log-item"
+                  key={log._id}
+                  onClick={() => setSelectedLog(log)}
+                >
+                  <div>
+                    <span
+                      className={`log-status ${
+                        log.status === "Failed" || log.status === "Error"
+                          ? "log-error"
+                          : "log-success"
+                      }`}
+                    >
+                      {log.status || "Successful"}
+                    </span>
+                    <p className="log-text">{log.message}</p>
+                    <small className="log-subtext">
+                      Performed by: {actor.name}
+                    </small>
+                  </div>
+                  <span className="log-time">
+                    {formatDateTime(log.createdAt)}
+                  </span>
                 </div>
-                <span className="log-time">
-                  {formatDateTime(log.createdAt)}
-                </span>
-              </div>
-            ))
+              );
+            })
           ) : (
             <p className="activity-empty">
               No activity logs found for "{range}".
@@ -225,8 +293,8 @@ export default function Activity() {
             </div>
 
             <p className="export-hint">
-              This file contains full timestamps, actor IDs, execution statuses,
-              and descriptive audit messages for your hospital.
+              This report includes complete performer names, target entity
+              details, execution status, and audit messages.
             </p>
 
             <div className="modal-actions">
@@ -248,52 +316,126 @@ export default function Activity() {
         </div>
       )}
 
-      {/* --- SINGLE LOG DETAIL MODAL --- */}
-      {selectedLog && (
-        <div className="modal-overlay" onClick={() => setSelectedLog(null)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Log Entry Details</h3>
-              <button
-                className="modal-close-icon"
-                onClick={() => setSelectedLog(null)}
-              >
-                ✕
-              </button>
-            </div>
+      {/* --- EXPANDED LOG ENTRY MODAL --- */}
+      {selectedLog &&
+        (() => {
+          const actor = getActorInfo(selectedLog);
+          const target = getTargetInfo(selectedLog);
 
-            <div className="detail-field">
-              <strong>Audit Message:</strong>
-              <p>{selectedLog.message}</p>
-            </div>
-            <div className="detail-field">
-              <strong>Action Type:</strong>
-              <p>{selectedLog.action}</p>
-            </div>
-            <div className="detail-field">
-              <strong>Timestamp:</strong>
-              <p>{formatDateTime(selectedLog.createdAt)}</p>
-            </div>
-            <div className="detail-field">
-              <strong>Status:</strong>
-              <p>{selectedLog.status || "Successful"}</p>
-            </div>
-            <div className="detail-field">
-              <strong>Entity ID:</strong>
-              <p>{selectedLog.entityId || "N/A"}</p>
-            </div>
-
-            <div className="modal-actions">
-              <button
-                className="modal-cancel-btn"
-                onClick={() => setSelectedLog(null)}
+          return (
+            <div className="modal-overlay" onClick={() => setSelectedLog(null)}>
+              <div
+                className="modal-container log-detail-modal"
+                onClick={(e) => e.stopPropagation()}
               >
-                Close
-              </button>
+                <div className="modal-header">
+                  <h3>Log Detail Inspection</h3>
+                  <button
+                    className="modal-close-icon"
+                    onClick={() => setSelectedLog(null)}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Message Overview */}
+                <div className="detail-field highlight-field">
+                  <strong>Audit Message:</strong>
+                  <p>{selectedLog.message}</p>
+                </div>
+
+                {/* Performer Card */}
+                <div className="detail-section-box">
+                  <h4>👤 Performer (Actor)</h4>
+                  <div className="detail-grid">
+                    <div>
+                      <strong>Name:</strong> {actor.name}
+                    </div>
+                    <div>
+                      <strong>Email:</strong> {actor.email}
+                    </div>
+                    <div>
+                      <strong>Role:</strong> {actor.role}
+                    </div>
+                    <div>
+                      <strong>Staff ID:</strong> {actor.staffID || "N/A"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Target / Receiver Card */}
+                <div className="detail-section-box">
+                  <h4>🎯 Target (Receiver)</h4>
+                  <div className="detail-grid">
+                    <div>
+                      <strong>Entity Type:</strong>{" "}
+                      {selectedLog.entityType || target.type}
+                    </div>
+                    <div>
+                      <strong>Name:</strong> {target.name}
+                    </div>
+                    {target.type === "Patient" ? (
+                      <>
+                        <div>
+                          <strong>Gender:</strong> {target.gender}
+                        </div>
+                        <div>
+                          <strong>Ward:</strong> {target.ward}
+                        </div>
+                        <div>
+                          <strong>Phone:</strong> {target.phone}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <strong>Department:</strong>{" "}
+                          {target.department || "N/A"}
+                        </div>
+                        <div>
+                          <strong>Email:</strong> {target.email || "N/A"}
+                        </div>
+                      </>
+                    )}
+                    <div>
+                      <strong>Target ID:</strong> {target.staffID || "N/A"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Execution Metadata */}
+                <div className="detail-section-box">
+                  <h4>⚙️ Metadata</h4>
+                  <div className="detail-grid">
+                    <div>
+                      <strong>Action Code:</strong> {selectedLog.action}
+                    </div>
+                    <div>
+                      <strong>Execution Status:</strong>{" "}
+                      {selectedLog.status || "Successful"}
+                    </div>
+                    <div>
+                      <strong>Timestamp:</strong>{" "}
+                      {formatDateTime(selectedLog.createdAt)}
+                    </div>
+                    <div>
+                      <strong>Log ID:</strong> {selectedLog._id}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="modal-actions">
+                  <button
+                    className="modal-cancel-btn"
+                    onClick={() => setSelectedLog(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
     </div>
   );
 }
